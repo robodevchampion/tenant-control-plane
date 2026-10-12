@@ -4,6 +4,8 @@ import sys
 APP_LOGGERS = (
     "function.publisher",
     "function.consumer",
+    "function.worker",
+    "function.worker.simulator",
     "cp.services.task_updates",
 )
 

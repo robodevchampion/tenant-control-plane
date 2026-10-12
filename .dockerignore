@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+.vscode/
+.git/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.pyc
+.mypy_cache/
+.ipynb_checkpoints/
+.DS_Store
+*.log

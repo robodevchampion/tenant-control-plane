@@ -1,6 +1,6 @@
 import logging
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,7 +35,27 @@ async def apply_worker_update(session: AsyncSession, update: WorkerUpdate) -> st
             raise UnknownTaskUpdate(update.task_id)
 
         next_status = TaskStatus(update.status)
-        if next_status not in TASK_TRANSITIONS[task.status]:
+        is_out_of_order_terminal = (
+            task.status == TaskStatus.ACCEPTED
+            and next_status in {TaskStatus.DONE, TaskStatus.FAILED}
+        )
+
+        if is_out_of_order_terminal:
+            synthetic_in_progress_id = uuid5(NAMESPACE_URL, f"{task.id}:in_progress")
+            synthetic_inserted = await ProcessedUpdateRepository(session).record_if_new(
+                synthetic_in_progress_id,
+                task.id,
+                now,
+            )
+            if synthetic_inserted:
+                logger.info(
+                    "Recovered out-of-order worker update for task %s by recording synthetic in_progress %s before applying %s",
+                    task.id,
+                    synthetic_in_progress_id,
+                    update.update_id,
+                )
+
+        if not is_out_of_order_terminal and next_status not in TASK_TRANSITIONS[task.status]:
             logger.info(
                 "Ignoring stale worker update %s for task %s in status %s",
                 update.update_id,

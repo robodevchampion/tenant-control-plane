@@ -175,6 +175,13 @@ class WorkerSimulator:
             return
 
         task_id = task_event.id
+        logger.info(
+            "Received task event task_id=%s type=%s status=%s queue=%s",
+            task_id,
+            task_event.type.value,
+            task_event.status.value,
+            self.options.queue_name,
+        )
         async with self.semaphore:
             async with self.state_lock:
                 terminal_update = self.terminal_updates.get(task_id)
@@ -188,20 +195,21 @@ class WorkerSimulator:
                     self.running_tasks.add(task_id)
 
             if terminal_update is not None:
+                logger.info("Replaying stored terminal state task_id=%s status=%s", task_id, terminal_update["status"])
                 await self._publish_update(update_exchange, terminal_update)
                 await message.ack()
                 logger.info("Replayed stored terminal result for task_id=%s", task_id)
                 return
 
             try:
-                await self._publish_update(
-                    update_exchange,
-                    self._update_payload(task_id, "in_progress"),
-                )
+                progress_update = self._update_payload(task_id, "in_progress")
+                logger.info("Publishing in_progress task_id=%s update_id=%s", task_id, progress_update["update_id"])
+                await self._publish_update(update_exchange, progress_update)
                 status, error = await self._simulate_outcome(task_id)
                 terminal_update = self._update_payload(task_id, status, error)
                 async with self.state_lock:
                     self.terminal_updates[task_id] = terminal_update
+                logger.info("Terminal outcome decided task_id=%s status=%s error=%s", task_id, status, error)
                 await self._publish_update(update_exchange, terminal_update)
                 await message.ack()
                 logger.info(
@@ -223,10 +231,13 @@ class WorkerSimulator:
     async def run(self, stop_event: asyncio.Event) -> None:
         backoff_seconds = 0.5
         logger.info(
-            "Worker starting queue=%s concurrency=%s max_attempts=%s",
+            "Worker starting queue=%s concurrency=%s max_attempts=%s fail_rate=%.3f min_delay_ms=%s max_delay_ms=%s",
             self.options.queue_name,
             self.options.concurrency,
             self.options.max_attempts,
+            self.options.fail_rate,
+            self.options.min_delay_ms,
+            self.options.max_delay_ms,
         )
         while not stop_event.is_set():
             connection: AbstractRobustConnection | None = None

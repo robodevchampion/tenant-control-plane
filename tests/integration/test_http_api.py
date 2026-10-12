@@ -134,6 +134,7 @@ async def test_documented_api_operations_over_http() -> None:
             assert patch.status_code == 202, patch.text
             assert patch.headers["location"] == f"/v1/tasks/{patch.json()['task']['id']}"
             assert patch.json()["tenant"]["status"] == "updating"
+            assert patch.json()["tenant"]["version"] == tenant["version"] + 1
             assert patch.json()["task"]["type"] == "update"
 
             stale_patch = await client.patch(

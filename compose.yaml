@@ -1,0 +1,111 @@
+name: tenant-control-plane
+
+services:
+  postgres:
+    image: docker.io/postgres:16-alpine
+    container_name: tenant-postgres
+    environment:
+      POSTGRES_DB: tenant_db
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: change-me
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d tenant_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  rabbitmq:
+    image: docker.io/rabbitmq:3.13-management
+    container_name: tenant-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: change-me
+    ports:
+      - "5673:5672"
+      - "15673:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tenant-api
+    command: ["sh", "-lc", "alembic upgrade head && uvicorn cp.main:create_app --factory --host 0.0.0.0 --port 8000"]
+    environment:
+      DB_NAME: tenant_db
+      DB_USER: admin
+      DB_PASSWORD: change-me
+      DB_HOST: postgres # service name inside the compose network; host port is 5433
+      DB_PORT: "5432"  # container port inside the compose network
+      BROKER_HOST: rabbitmq # service name inside the compose network; host port is 5673
+      BROKER_PORT: "5672"  # container port inside the compose network
+      BROKER_USER: admin
+      BROKER_PASSWORD: change-me
+      OUTBOX_POLL_INTERVAL_MS: "500"
+      OUTBOX_BATCH_SIZE: "50"
+      CONSUMER_PREFETCH: "10"
+      CONSUMER_MAX_ATTEMPTS: "5"
+      WORKER_FAIL_RATE: "0.0"
+      WORKER_MIN_DELAY_MS: "500"
+      WORKER_MAX_DELAY_MS: "2000"
+      WORKER_MAX_ATTEMPTS: "1"
+      WORKER_RETRY_BACKOFF_MS: "250"
+      WORKER_CONCURRENCY: "5"
+      WORKER_DUPLICATE_RATE: "0.0"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tenant-worker
+    command: ["python", "-m", "function.worker", "--fail-rate", "0.2", "--min-delay-ms", "500", "--max-delay-ms", "1500", "--retry-backoff-ms", "200", "--concurrency", "2"]
+    environment:
+      DB_NAME: tenant_db
+      DB_USER: admin
+      DB_PASSWORD: change-me
+      DB_HOST: postgres # service name inside the compose network; host port is 5433
+      DB_PORT: "5432"  # container port inside the compose network
+      BROKER_HOST: rabbitmq # service name inside the compose network; host port is 5673
+      BROKER_PORT: "5672"  # container port inside the compose network
+      BROKER_USER: admin
+      BROKER_PASSWORD: change-me
+      OUTBOX_POLL_INTERVAL_MS: "500"
+      OUTBOX_BATCH_SIZE: "50"
+      CONSUMER_PREFETCH: "10"
+      CONSUMER_MAX_ATTEMPTS: "5"
+      WORKER_FAIL_RATE: "0.2"
+      WORKER_MIN_DELAY_MS: "500"
+      WORKER_MAX_DELAY_MS: "1500"
+      WORKER_MAX_ATTEMPTS: "3"
+      WORKER_RETRY_BACKOFF_MS: "200"
+      WORKER_CONCURRENCY: "2"
+      WORKER_DUPLICATE_RATE: "0.0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

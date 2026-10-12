@@ -151,7 +151,7 @@ async def test_consumer_applies_updates_and_dead_letters_invalid_messages() -> N
                         and task.status == TaskStatus.DONE
                         and tenant is not None
                         and tenant.status == TenantStatus.ACTIVE
-                        and tenant.version == 2
+                        and tenant.version == 1
                     )
 
             await wait_until(task_and_tenant_are_complete)

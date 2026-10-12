@@ -45,7 +45,6 @@ class TenantRepository(BaseRepository):
             .where(Tenant.id == tenant_id, Tenant.status == expected_status)
             .values(
                 status=next_status,
-                version=Tenant.version + 1,
                 updated_at=now,
             )
         )

@@ -134,7 +134,7 @@ async def test_worker_completes_tenant_through_api_publisher_and_consumer() -> N
                     return (
                         tenant is not None
                         and tenant.status == TenantStatus.ACTIVE
-                        and tenant.version == 2
+                        and tenant.version == 1
                         and task is not None
                         and task.status == TaskStatus.DONE
                         and outbox is not None
@@ -151,7 +151,7 @@ async def test_worker_completes_tenant_through_api_publisher_and_consumer() -> N
                 tenant_response = await client.get(f"/v1/tenants/{tenant_id}")
                 task_response = await client.get(f"/v1/tasks/{task_id}")
             assert tenant_response.json()["status"] == "active"
-            assert tenant_response.json()["version"] == 2
+            assert tenant_response.json()["version"] == 1
             assert task_response.json()["status"] == "done"
             assert task_response.json()["type"] == "deploy"
     finally:
