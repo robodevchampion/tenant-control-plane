@@ -7,6 +7,8 @@ from starlette.middleware.cors import CORSMiddleware
 
 from cp.application.exceptions import register_error_handlers
 from cp.application.middleware import request_logging
+from cp.logging_config import configure_application_logging
+from function.consumer.consumer import UpdateConsumer
 from function.publisher.outbox_publisher import OutboxPublisher
 from function.tenant_api import health_router, task_router, tenant_router
 
@@ -18,19 +20,29 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         OutboxPublisher().run(stop_event),
         name="outbox-publisher",
     )
+    consumer_task = asyncio.create_task(
+        UpdateConsumer().run(stop_event),
+        name="task-update-consumer",
+    )
     app.state.outbox_publisher_task = publisher_task
+    app.state.task_update_consumer_task = consumer_task
     try:
         yield
     finally:
         stop_event.set()
         try:
-            await asyncio.wait_for(publisher_task, timeout=5)
+            await asyncio.wait_for(
+                asyncio.gather(publisher_task, consumer_task),
+                timeout=5,
+            )
         except TimeoutError:
             publisher_task.cancel()
-            await asyncio.gather(publisher_task, return_exceptions=True)
+            consumer_task.cancel()
+            await asyncio.gather(publisher_task, consumer_task, return_exceptions=True)
 
 
 def create_app() -> FastAPI:
+    configure_application_logging()
     app = FastAPI(
         title="Tenant Provisioning Control Plane",
         version="1.0.0",

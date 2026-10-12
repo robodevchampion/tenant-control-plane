@@ -1,5 +1,7 @@
+from dataclasses import dataclass
+
 import aio_pika
-from aio_pika.abc import AbstractExchange, AbstractRobustChannel
+from aio_pika.abc import AbstractExchange, AbstractQueue, AbstractRobustChannel
 
 TASKS_EXCHANGE = "cp.tasks"
 TASKS_QUEUE = "cp.tasks.worker"
@@ -12,13 +14,24 @@ TASK_UPDATE_ROUTING_KEY = "task.update"
 TASK_UPDATES_DEAD_ROUTING_KEY = "task-updates.dead"
 
 
-async def declare_topology(channel: AbstractRobustChannel) -> AbstractExchange:
+@dataclass(frozen=True)
+class BrokerTopology:
+    tasks_exchange: AbstractExchange
+    tasks_queue: AbstractQueue
+    task_updates_exchange: AbstractExchange
+    task_updates_queue: AbstractQueue
+
+
+async def declare_topology(
+    channel: AbstractRobustChannel,
+    tasks_queue_name: str = TASKS_QUEUE,
+) -> BrokerTopology:
     tasks_exchange = await channel.declare_exchange(
         TASKS_EXCHANGE,
         aio_pika.ExchangeType.DIRECT,
         durable=True,
     )
-    task_queue = await channel.declare_queue(TASKS_QUEUE, durable=True)
+    task_queue = await channel.declare_queue(tasks_queue_name, durable=True)
     for routing_key in TASK_ROUTING_KEYS:
         await task_queue.bind(tasks_exchange, routing_key=routing_key)
 
@@ -47,4 +60,4 @@ async def declare_topology(channel: AbstractRobustChannel) -> AbstractExchange:
         dead_letter_exchange,
         routing_key=TASK_UPDATES_DEAD_ROUTING_KEY,
     )
-    return tasks_exchange
+    return BrokerTopology(tasks_exchange, task_queue, updates_exchange, updates_queue)

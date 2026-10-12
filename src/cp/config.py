@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     broker_password: str
     outbox_poll_interval_ms: int
     outbox_batch_size: int
+    consumer_prefetch: int
+    consumer_max_attempts: int
+    worker_fail_rate: float
+    worker_min_delay_ms: int
+    worker_max_delay_ms: int
+    worker_max_attempts: int
+    worker_retry_backoff_ms: int
+    worker_concurrency: int
+    worker_duplicate_rate: float
+    worker_seed: int | None = None
 
     @property
     def database_url(self) -> URL:

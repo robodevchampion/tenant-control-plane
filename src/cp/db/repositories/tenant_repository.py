@@ -32,3 +32,21 @@ class TenantRepository(BaseRepository):
             update(Tenant).where(*conditions).values(**values).returning(Tenant)
         )
         return result.scalar_one_or_none()
+
+    async def apply_task_outcome(
+        self,
+        tenant_id: UUID,
+        expected_status: TenantStatus,
+        next_status: TenantStatus,
+        now: datetime,
+    ) -> bool:
+        result = await self.session.execute(
+            update(Tenant)
+            .where(Tenant.id == tenant_id, Tenant.status == expected_status)
+            .values(
+                status=next_status,
+                version=Tenant.version + 1,
+                updated_at=now,
+            )
+        )
+        return result.rowcount == 1

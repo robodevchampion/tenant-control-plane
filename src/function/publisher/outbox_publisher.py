@@ -26,7 +26,7 @@ class OutboxPublisher:
         self.session_factory = session_factory
         self.settings = settings or get_settings()
 
-    async def publish_batch(self, exchange: AbstractExchange) -> int:
+    async def publish_batch(self, exchange: AbstractExchange) -> list[tuple[str, str]]:
         async with self.session_factory() as session:
             async with session.begin():
                 result = await session.scalars(
@@ -37,6 +37,7 @@ class OutboxPublisher:
                     .with_for_update(skip_locked=True)
                 )
                 events = list(result.all())
+                published_events = []
                 for event in events:
                     message = aio_pika.Message(
                         body=json.dumps(event.payload, separators=(",", ":")).encode(),
@@ -51,23 +52,34 @@ class OutboxPublisher:
                         mandatory=True,
                     )
                     event.published_at = datetime.now(UTC)
-                return len(events)
+                    published_events.append((str(event.task_id), event.routing_key))
+                return published_events
 
     async def run(self, stop_event: asyncio.Event) -> None:
         backoff_seconds = 0.5
+        logger.info(
+            "Outbox publisher starting poll_interval_ms=%s batch_size=%s",
+            self.settings.outbox_poll_interval_ms,
+            self.settings.outbox_batch_size,
+        )
         while not stop_event.is_set():
             connection: AbstractRobustConnection | None = None
             try:
                 connection = await connect_broker(self.settings.broker_url)
                 channel = await connection.channel(publisher_confirms=True)
-                exchange = await declare_topology(channel)
+                topology = await declare_topology(channel)
                 logger.info("Outbox publisher connected and topology declared")
                 backoff_seconds = 0.5
 
                 while not stop_event.is_set():
-                    published_count = await self.publish_batch(exchange)
-                    if published_count:
-                        logger.info("Published %s outbox event(s)", published_count)
+                    published_events = await self.publish_batch(topology.tasks_exchange)
+                    if published_events:
+                        for task_id, routing_key in published_events:
+                            logger.info(
+                                "Published task event task_id=%s routing_key=%s",
+                                task_id,
+                                routing_key,
+                            )
                         continue
                     try:
                         await asyncio.wait_for(
@@ -92,3 +104,4 @@ class OutboxPublisher:
                     await asyncio.wait_for(stop_event.wait(), timeout=backoff_seconds)
                 except TimeoutError:
                     backoff_seconds = min(backoff_seconds * 2, 10)
+            logger.info("Outbox publisher stopped")
