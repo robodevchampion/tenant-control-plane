@@ -11,9 +11,7 @@ class ProcessedUpdateRepository(BaseRepository):
     async def add_update(self, update: ProcessedUpdate) -> ProcessedUpdate:
         return await self.add(update)
 
-    async def record_if_new(
-        self, update_id: UUID, task_id: UUID, processed_at: datetime
-    ) -> bool:
+    async def record_if_new(self, update_id: UUID, task_id: UUID, processed_at: datetime) -> bool:
         statement = (
             insert(ProcessedUpdate)
             .values(update_id=update_id, task_id=task_id, processed_at=processed_at)

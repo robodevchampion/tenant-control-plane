@@ -14,11 +14,11 @@ from cp.db.session import SessionFactory, engine
 from cp.domain.enums import TaskStatus, TenantStatus
 from cp.main import create_app
 from function.publisher.topology import (
-    TASKS_QUEUE,
     TASK_UPDATE_EXCHANGE,
     TASK_UPDATE_ROUTING_KEY,
     TASK_UPDATES_DEAD_ROUTING_KEY,
     TASK_UPDATES_DLQ,
+    TASKS_QUEUE,
     declare_topology,
 )
 
@@ -66,6 +66,7 @@ async def receive_task_message(queue, task_id: UUID):
     finally:
         for message in deferred:
             await message.nack(requeue=True)
+
 
 async def receive_dead_letter(queue, expected_body: bytes):
     deferred = []

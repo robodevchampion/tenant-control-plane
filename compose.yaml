@@ -78,7 +78,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: tenant-worker
-    command: ["python", "-m", "function.worker", "--fail-rate", "0.2", "--min-delay-ms", "500", "--max-delay-ms", "1500", "--retry-backoff-ms", "200", "--concurrency", "2"]
+    command: ["python", "-m", "function.worker", "--fail-rate", "0", "--min-delay-ms", "500", "--max-delay-ms", "1500", "--retry-backoff-ms", "200", "--concurrency", "2"]
     environment:
       DB_NAME: tenant_db
       DB_USER: admin

@@ -12,7 +12,7 @@ from cp.db.models import Outbox, ProcessedUpdate, Task, Tenant
 from cp.db.session import SessionFactory, engine
 from cp.domain.enums import TaskStatus, TenantStatus
 from cp.main import create_app
-from function.publisher.topology import TASKS_EXCHANGE, TASK_UPDATE_ROUTING_KEY
+from function.publisher.topology import TASKS_EXCHANGE
 from function.worker.simulator import WorkerOptions, WorkerSimulator
 
 
@@ -123,9 +123,7 @@ async def test_worker_completes_tenant_through_api_publisher_and_consumer() -> N
                 async with SessionFactory() as session:
                     tenant = await session.get(Tenant, tenant_id)
                     task = await session.get(Task, task_id)
-                    outbox = await session.scalar(
-                        select(Outbox).where(Outbox.task_id == task_id)
-                    )
+                    outbox = await session.scalar(select(Outbox).where(Outbox.task_id == task_id))
                     updates = await session.scalar(
                         select(func.count())
                         .select_from(ProcessedUpdate)
@@ -142,7 +140,9 @@ async def test_worker_completes_tenant_through_api_publisher_and_consumer() -> N
                         and updates == 2
                     )
 
-            await wait_for(lifecycle_finished, "tenant active, task done, event published, 2 updates recorded")
+            await wait_for(
+                lifecycle_finished, "tenant active, task done, event published, 2 updates recorded"
+            )
 
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=app),

@@ -13,7 +13,7 @@ class Mediator:
             handler_type = self.handlers[type(entity)]
         except KeyError as exc:
             raise LookupError(f"No handler registered for {type(entity).__name__}") from exc
-        handler = self.injector.get(handler_type)
+        handler: Any = self.injector.get(handler_type)
         result = handler.handle(entity, **context)
         return await result if inspect.isawaitable(result) else result
 

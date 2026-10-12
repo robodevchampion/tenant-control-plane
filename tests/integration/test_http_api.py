@@ -1,4 +1,3 @@
-import os
 from uuid import uuid4
 
 import httpx
@@ -8,19 +7,21 @@ from sqlalchemy import delete, select, update
 from cp.db.models import Outbox, Task, Tenant
 from cp.db.session import SessionFactory, engine
 from cp.domain.enums import TaskStatus, TenantStatus
+from cp.main import create_app
 
 
 @pytest.mark.asyncio
 async def test_documented_api_operations_over_http() -> None:
-    base_url = os.getenv("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
     tenant_ids: list[str] = []
+    app = create_app()
+    transport = httpx.ASGITransport(app=app)
 
-    async with httpx.AsyncClient(base_url=base_url, timeout=10) as client:
-        try:
-            health = await client.get("/healthz")
-        except httpx.ConnectError:
-            pytest.skip(f"API server is not reachable at {base_url}")
-
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        timeout=10,
+    ) as client:
+        health = await client.get("/healthz")
         assert health.status_code == 200
         assert health.json() == {"status": "ok"}
 
@@ -107,9 +108,23 @@ async def test_documented_api_operations_over_http() -> None:
                 await client.get(f"/v1/tenants/{tenant['id']}/tasks?cursor=invalid")
             ).status_code == 422
 
+            async with SessionFactory() as session:
+                async with session.begin():
+                    await session.execute(
+                        update(Tenant)
+                        .where(Tenant.id == tenant["id"])
+                        .values(status=TenantStatus.FAILED)
+                    )
+                    await session.execute(
+                        update(Task)
+                        .where(Task.id == deploy_task["id"])
+                        .values(status=TaskStatus.DONE)
+                    )
+            guarded_tenant = (await client.get(f"/v1/tenants/{tenant['id']}")).json()
+
             blocked_patch = await client.patch(
                 f"/v1/tenants/{tenant['id']}",
-                json={"version": tenant["version"], "name": "Blocked"},
+                json={"version": guarded_tenant["version"], "name": "Blocked"},
             )
             assert blocked_patch.status_code == 409
             assert blocked_patch.json()["error"]["code"] == "tenant_update_not_allowed"
@@ -129,17 +144,17 @@ async def test_documented_api_operations_over_http() -> None:
 
             patch = await client.patch(
                 f"/v1/tenants/{tenant['id']}",
-                json={"version": tenant["version"], "name": "Updated over HTTP"},
+                json={"version": guarded_tenant["version"], "name": "Updated over HTTP"},
             )
             assert patch.status_code == 202, patch.text
             assert patch.headers["location"] == f"/v1/tasks/{patch.json()['task']['id']}"
             assert patch.json()["tenant"]["status"] == "updating"
-            assert patch.json()["tenant"]["version"] == tenant["version"] + 1
+            assert patch.json()["tenant"]["version"] == guarded_tenant["version"] + 1
             assert patch.json()["task"]["type"] == "update"
 
             stale_patch = await client.patch(
                 f"/v1/tenants/{tenant['id']}",
-                json={"version": tenant["version"], "name": "Stale version"},
+                json={"version": guarded_tenant["version"], "name": "Stale version"},
             )
             assert stale_patch.status_code == 409
             assert stale_patch.json()["error"]["code"] == "tenant_version_conflict"

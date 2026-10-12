@@ -46,9 +46,7 @@ def _task_event(task: Task) -> dict[str, str]:
     }
 
 
-async def _raise_open_task_conflict(
-    session: AsyncSession, tenant_id: UUID, action: str
-) -> None:
+async def _raise_open_task_conflict(session: AsyncSession, tenant_id: UUID, action: str) -> None:
     current = await TenantQuery(session).get_by_id(tenant_id)
     raise DomainError(
         "tenant_update_not_allowed",
@@ -64,10 +62,12 @@ async def _raise_open_task_conflict(
 
 async def _ensure_no_open_task(session: AsyncSession, tenant_id: UUID, action: str) -> None:
     result = await session.execute(
-        select(Task.id).where(
+        select(Task.id)
+        .where(
             Task.tenant_id == tenant_id,
             Task.status.in_((TaskStatus.ACCEPTED, TaskStatus.IN_PROGRESS)),
-        ).limit(1)
+        )
+        .limit(1)
     )
     if result.scalar_one_or_none() is not None:
         await _raise_open_task_conflict(session, tenant_id, action)
@@ -88,7 +88,7 @@ async def _add_task(
     try:
         await TaskRepository(session).add_task(task)
     except IntegrityError as exc:
-        if _constraint_name(exc.orig) == "tasks_one_open_per_tenant":
+        if _constraint_name(exc) == "tasks_one_open_per_tenant":
             await _raise_open_task_conflict(session, tenant.id, task_type.value)
         raise
     await OutboxRepository(session).add_event(
@@ -118,7 +118,7 @@ async def create_tenant(session: AsyncSession, slug: str, name: str) -> tuple[Te
             await TenantRepository(session).add(tenant)
             task = await _add_task(session, tenant, TaskType.DEPLOY, now)
     except IntegrityError as exc:
-        if _constraint_name(exc.orig) == "tenants_slug_key":
+        if _constraint_name(exc) == "tenants_slug_key":
             raise DomainError(
                 "tenant_already_exists",
                 f"A tenant with slug '{slug}' already exists.",

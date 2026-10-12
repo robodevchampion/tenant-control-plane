@@ -77,7 +77,7 @@ class WorkerSimulator:
     ) -> None:
         self.settings = settings or get_settings()
         self.options = options or WorkerOptions.from_settings(self.settings)
-        self.random = random.Random(self.options.seed)
+        self.random = random.Random(self.options.seed)  # nosec B311
         self.running_tasks: set[UUID] = set()
         self.terminal_updates: dict[UUID, dict[str, str | None]] = {}
         self.state_lock = asyncio.Lock()
@@ -195,7 +195,11 @@ class WorkerSimulator:
                     self.running_tasks.add(task_id)
 
             if terminal_update is not None:
-                logger.info("Replaying stored terminal state task_id=%s status=%s", task_id, terminal_update["status"])
+                logger.info(
+                    "Replaying stored terminal state task_id=%s status=%s",
+                    task_id,
+                    terminal_update["status"],
+                )
                 await self._publish_update(update_exchange, terminal_update)
                 await message.ack()
                 logger.info("Replayed stored terminal result for task_id=%s", task_id)
@@ -203,13 +207,19 @@ class WorkerSimulator:
 
             try:
                 progress_update = self._update_payload(task_id, "in_progress")
-                logger.info("Publishing in_progress task_id=%s update_id=%s", task_id, progress_update["update_id"])
+                logger.info(
+                    "Publishing in_progress task_id=%s update_id=%s",
+                    task_id,
+                    progress_update["update_id"],
+                )
                 await self._publish_update(update_exchange, progress_update)
                 status, error = await self._simulate_outcome(task_id)
                 terminal_update = self._update_payload(task_id, status, error)
                 async with self.state_lock:
                     self.terminal_updates[task_id] = terminal_update
-                logger.info("Terminal outcome decided task_id=%s status=%s error=%s", task_id, status, error)
+                logger.info(
+                    "Terminal outcome decided task_id=%s status=%s error=%s", task_id, status, error
+                )
                 await self._publish_update(update_exchange, terminal_update)
                 await message.ack()
                 logger.info(
@@ -231,7 +241,8 @@ class WorkerSimulator:
     async def run(self, stop_event: asyncio.Event) -> None:
         backoff_seconds = 0.5
         logger.info(
-            "Worker starting queue=%s concurrency=%s max_attempts=%s fail_rate=%.3f min_delay_ms=%s max_delay_ms=%s",
+            "Worker starting queue=%s concurrency=%s max_attempts=%s "
+            "fail_rate=%.3f min_delay_ms=%s max_delay_ms=%s",
             self.options.queue_name,
             self.options.concurrency,
             self.options.max_attempts,

@@ -24,7 +24,7 @@ class ReadinessHandler:
                 await connection.execute(text("SELECT 1"))
             checks["database"] = "ok"
         except Exception:
-            pass
+            checks["database"] = "unavailable"
 
         try:
             async with asyncio.timeout(3):
@@ -32,7 +32,7 @@ class ReadinessHandler:
                 await connection.close()
             checks["broker"] = "ok"
         except Exception:
-            pass
+            checks["broker"] = "unavailable"
 
         ready = all(value == "ok" for value in checks.values())
         return {

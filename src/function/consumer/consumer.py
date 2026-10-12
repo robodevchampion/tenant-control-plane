@@ -3,7 +3,6 @@ import json
 import logging
 import random
 
-import aio_pika
 from aio_pika.abc import AbstractIncomingMessage, AbstractRobustConnection
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -66,7 +65,9 @@ class UpdateConsumer:
                     await message.reject(requeue=False)
                     return
                 delay = min(0.2 * (2 ** (attempt - 1)), 10)
-                await asyncio.sleep(delay + random.uniform(0, delay * 0.25))
+                await asyncio.sleep(
+                    delay + random.uniform(0, delay * 0.25)  # nosec B311
+                )
 
     async def run(self, stop_event: asyncio.Event) -> None:
         backoff_seconds = 0.5

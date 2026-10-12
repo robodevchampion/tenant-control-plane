@@ -14,6 +14,17 @@ podman compose up --build -d
 
 The API is available at `http://localhost:8000`.
 
+## Run the Test and Quality Gate
+
+Install the development tools and run the full documented gate from the repository root:
+
+```bash
+uv sync --all-groups
+uv run python scripts/check.py
+```
+
+The single check command runs linting, formatting validation, type checking, source security scanning, dependency auditing, and the test suite. The dependency audit needs network access to query vulnerability advisories.
+
 ## API Documentation
 
 - Interactive Swagger UI for a running local stack: [http://localhost:8000/docs](http://localhost:8000/docs)

@@ -1,11 +1,10 @@
-import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 
-from function.worker.contracts import TaskEvent
 from function.worker.__main__ import parse_failure_rate
+from function.worker.contracts import TaskEvent
 from function.worker.simulator import WorkerOptions, WorkerSimulator
 
 
@@ -46,13 +45,17 @@ class FakeIncomingMessage:
 
 
 def make_task_event(task_id) -> bytes:
-    return TaskEvent(
-        id=task_id,
-        type="deploy",
-        tenant_id=uuid4(),
-        status="accepted",
-        created_at=datetime.now(UTC),
-    ).model_dump_json().encode()
+    return (
+        TaskEvent(
+            id=task_id,
+            type="deploy",
+            tenant_id=uuid4(),
+            status="accepted",
+            created_at=datetime.now(UTC),
+        )
+        .model_dump_json()
+        .encode()
+    )
 
 
 @pytest.mark.asyncio

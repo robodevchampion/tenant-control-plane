@@ -118,9 +118,7 @@ Install Python 3.12 and `uv`, then run from the repository root:
 
 ```bash
 uv sync --all-groups
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest
+uv run python scripts/check.py
 ```
 
-The broker/database integration tests use the configured local services; tests that require unavailable dependencies may skip with a reason.
+The single check command runs Ruff lint, Ruff format validation, mypy over `src`, Bandit over `src`, pip-audit against the locked runtime and development dependencies, and pytest. The dependency audit requires network access to fetch vulnerability data. Integration tests need PostgreSQL and RabbitMQ; tests that cannot reach those services may skip with a reason.
