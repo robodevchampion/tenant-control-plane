@@ -64,32 +64,51 @@ curl -i http://localhost:8000/healthz
 curl -i http://localhost:8000/readyz
 ```
 
-Run the end-to-end smoke script from the repository root:
+Run the end-to-end scenario script from PowerShell on Windows, or from a shell with a working Podman Compose provider:
 
 ```bash
-bash ./scripts/podman_e2e_flow.sh
+uv run python scripts/podman_e2e_flow.py 1
 ```
 
-The script creates a tenant, then polls the tenant and task endpoints until the tenant is `active` and its deploy task is `done`. It requires Bash, Python, and `curl` on the host. The API response includes the created tenant and task IDs; those can also be checked in Swagger UI.
+The script requires Python development dependencies (`uv sync --all-groups`) and a running Podman Compose stack. It creates a uniquely named tenant and polls the tenant/task endpoints. Use `uv run python scripts/podman_e2e_flow.py --help` to list the scenarios. Running from WSL requires a Compose provider configured for that WSL Podman environment; on Windows, PowerShell uses the Windows provider.
 
-The Compose worker is configured with `--fail-rate 0.2` to exercise failures during normal local use, so a smoke-test tenant can fail by design. The script prints status changes and exits immediately with the worker's error if the task fails. For a deterministic success run, temporarily set the worker's `--fail-rate` to `0` in `compose.yaml`, recreate the worker with `podman compose up -d --force-recreate worker`, then run the script.
+### Scenario 1: Successful deployment
 
-## Reproduce Worker Failures
+Uses the default Compose worker, which has `WORKER_FAIL_RATE=0.0` and a 5-15 second work delay. Expected result: tenant `active`, task `done`.
 
-To route tasks to a worker configured to fail every task, stop the default worker and start a temporary worker with a 100% failure rate:
+### Scenario 2: Forced failure
 
 ```bash
-podman compose stop worker
-podman compose run --rm worker python -m function.worker --fail-rate 1 --min-delay-ms 500 --max-delay-ms 1000
+uv run python scripts/podman_e2e_flow.py 2
 ```
 
-Create a tenant while this worker is running. The deploy task should reach `failed`, and the tenant should reach `failed`. Stop the temporary worker with Ctrl+C, then restore the default worker:
+The script stops the default worker, launches a temporary worker with `--fail-rate 1`, and expects both tenant and task to reach `failed`. It removes the temporary worker and restarts the default worker when it exits.
+
+### Scenario 3: Duplicate updates
 
 ```bash
-podman compose up -d worker
+uv run python scripts/podman_e2e_flow.py 3
 ```
 
-`--fail-rate` accepts a decimal or ratio, such as `0.2` or `1/5`; the value is the approximate fraction of tasks that ultimately fail, not the fraction of individual attempts.
+The script temporarily runs the worker with `--duplicate-rate 1`, causing every progress and terminal update to be published twice. It expects successful completion, two unique processed update records, and duplicate acknowledgements in the API logs. This demonstrates consumer idempotency.
+
+### Scenario 4: Out-of-order updates
+
+```bash
+uv run python scripts/podman_e2e_flow.py 4
+```
+
+The script stops the worker, creates a tenant, then publishes a `done` update before an `in_progress` update using RabbitMQ's management HTTP API. It verifies the task remains `done` and the tenant remains `active` after the late progress message. It requires the management endpoint at `http://127.0.0.1:15673` and the local Compose credentials (`admin` / `change-me` by default). The worker is restarted automatically when the script exits.
+
+### Scenario 5: Duplicate task event
+
+```bash
+uv run python scripts/podman_e2e_flow.py 5
+```
+
+After deployment completes, the script republishes the original accepted `task.deploy` event with the same task ID and payload through RabbitMQ's management API. The worker finds the cached terminal result and replays its `done` update; the consumer identifies that update by its stable ID and logs it as a duplicate. The script verifies the processed-update count remains two and the tenant/task remain `active`/`done`. This differs from scenario 3, which duplicates worker-update messages rather than the original task event.
+
+Scenarios 4 and 5 require the management endpoint at `http://127.0.0.1:15673` and the local Compose credentials (`admin` / `change-me` by default). The script restarts the default worker automatically after scenarios that stop or replace it. All scenarios accept the API address through `API_BASE`; scenarios 4 and 5 accept the management address through `BROKER_MANAGEMENT_BASE`. Set `BROKER_USER` and `BROKER_PASSWORD` if the local broker credentials differ. `--fail-rate` accepts a decimal or ratio (for example `0.2` or `1/5`); it is the approximate fraction of tasks that ultimately fail.
 
 ## Stop and Remove Data
 

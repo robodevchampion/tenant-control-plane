@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -60,6 +61,7 @@ def make_task_event(task_id) -> bytes:
 
 @pytest.mark.asyncio
 async def test_worker_simulates_success_and_exhausted_failure(caplog) -> None:
+    caplog.set_level(logging.INFO)
     successful = WorkerSimulator(make_options(fail_rate=0.0))
     failed = WorkerSimulator(make_options(fail_rate=1.0, max_attempts=3))
 
@@ -67,6 +69,8 @@ async def test_worker_simulates_success_and_exhausted_failure(caplog) -> None:
     outcome, error = await failed._simulate_outcome(uuid4())
     assert outcome == "failed"
     assert "attempt 3" in error
+    assert "Applying simulated worker delay" in caplog.text
+    assert "delay_ms=0" in caplog.text
     assert "Worker exhausted attempts" in caplog.text
 
 

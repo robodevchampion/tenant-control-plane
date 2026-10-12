@@ -31,8 +31,8 @@ Explicitly out of scope: auth, metrics dashboards, Kubernetes, multi-region, a r
 | Locking | Conditional `UPDATE ... WHERE version = :v AND status = ...` | Atomic, no explicit locks needed on the API path |
 | Worker | Separate process, same image, `python -m cp.worker` | Matches "separate process" requirement |
 | Tests | `pytest` + `pytest-asyncio` + `httpx` against real Postgres and RabbitMQ | Real concurrency, no mocks for the hard parts |
-| Quality | `ruff` (lint + format), `mypy`, `bandit`, `pip-audit` | One command: `make check` |
-| Runner | `Makefile` wrapping Docker commands | Copy-pasteable |
+| Quality | `ruff` (lint + format), `mypy`, `bandit`, `pip-audit`, `pytest` | One command: `uv run python scripts/check.py` |
+| Runner | Cross-platform Python quality runner; Podman Compose boots services | Copy-pasteable on Windows and POSIX |
 | Packaging | `uv` + `pyproject.toml` + lockfile | Fast, reproducible |
 | Not using | Celery, ORMs with auto-flush magic, testcontainers | See notes in section 12 |
 

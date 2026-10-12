@@ -36,6 +36,28 @@ The single check command runs linting, formatting validation, type checking, sou
 
 The API and worker communicate through RabbitMQ. Tenant and task writes are committed together; the outbox publisher then sends the task, and the worker publishes progress and a terminal result. See the [Architecture and State Flow](docs/architecture.md) for the diagram and design notes.
 
+## End-to-End Scenarios
+
+After starting the stack, run one of the numbered flows from the repository root:
+
+```bash
+uv run python scripts/podman_e2e_flow.py 1  # successful deployment
+uv run python scripts/podman_e2e_flow.py 2  # expected worker failure
+uv run python scripts/podman_e2e_flow.py 3  # duplicate worker updates
+uv run python scripts/podman_e2e_flow.py 4  # done update before in_progress
+uv run python scripts/podman_e2e_flow.py 5  # duplicate task event delivery
+```
+
+| Scenario | What it exercises | Expected verification |
+| --- | --- | --- |
+| `1` | Normal deployment with the default worker | Tenant becomes `active`; task becomes `done` |
+| `2` | Worker failure with `--fail-rate 1` | Tenant and task both become `failed` |
+| `3` | Each worker update published twice with the same update ID | Consumer records only the unique `in_progress` and `done` updates |
+| `4` | `done` update delivered before `in_progress` | Late progress is treated as stale; state stays terminal |
+| `5` | The original accepted task event delivered again after completion | Worker replays its cached result; consumer deduplicates it and state stays unchanged |
+
+Scenario `1` is the default when no number is supplied. Run the script from PowerShell on Windows so it uses the Windows Podman Compose provider. It restores the default worker after scenarios that temporarily replace or stop it. See [Local Setup](docs/setup.md#end-to-end-scenarios) for commands, detailed behavior, and prerequisites.
+
 ## Documentation Map
 
 | Document | What it covers |

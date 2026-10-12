@@ -137,10 +137,24 @@ class WorkerSimulator:
 
     async def _simulate_outcome(self, task_id: UUID) -> tuple[str, str | None]:
         if self.random.random() >= self.options.fail_rate:
+            delay_ms = self.random.randint(self.options.min_delay_ms, self.options.max_delay_ms)
+            logger.info(
+                "Applying simulated worker delay task_id=%s attempt=1/1 delay_ms=%s",
+                task_id,
+                delay_ms,
+            )
+            await asyncio.sleep(delay_ms / 1000)
             return "done", None
         last_error = "Simulated provisioning failure"
         for attempt in range(1, self.options.max_attempts + 1):
             delay_ms = self.random.randint(self.options.min_delay_ms, self.options.max_delay_ms)
+            logger.info(
+                "Applying simulated worker delay task_id=%s attempt=%s/%s delay_ms=%s",
+                task_id,
+                attempt,
+                self.options.max_attempts,
+                delay_ms,
+            )
             await asyncio.sleep(delay_ms / 1000)
             last_error = f"Simulated provisioning failure on attempt {attempt}"
             if attempt < self.options.max_attempts:
