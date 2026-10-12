@@ -72,7 +72,7 @@ bash ./scripts/podman_e2e_flow.sh
 
 The script creates a tenant, then polls the tenant and task endpoints until the tenant is `active` and its deploy task is `done`. It requires Bash, Python, and `curl` on the host. The API response includes the created tenant and task IDs; those can also be checked in Swagger UI.
 
-The Compose worker is configured with `--fail-rate 0.2` to exercise failures during normal local use, so a smoke-test tenant can fail by design. For a deterministic success run, temporarily set the worker's `--fail-rate` to `0` in `compose.yaml`, recreate the worker with `podman compose up -d --force-recreate worker`, then run the script.
+The Compose worker is configured with `--fail-rate 0.2` to exercise failures during normal local use, so a smoke-test tenant can fail by design. The script prints status changes and exits immediately with the worker's error if the task fails. For a deterministic success run, temporarily set the worker's `--fail-rate` to `0` in `compose.yaml`, recreate the worker with `podman compose up -d --force-recreate worker`, then run the script.
 
 ## Reproduce Worker Failures
 
