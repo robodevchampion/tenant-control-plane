@@ -1,55 +1,47 @@
-# tenant-control-plane
-Multi-tenant provisioning control plane in Python, built on the transactional outbox pattern with RabbitMQ.
+# Tenant Control Plane
 
-## Local Podman stack
+A Python control-plane API for asynchronous tenant provisioning. The API stores each requested operation as a task, publishes it through a transactional outbox, and applies worker updates from RabbitMQ. PostgreSQL provides durable state; Podman Compose runs the complete local stack.
 
-This repo includes a Podman-compatible compose file for a local three-service stack:
+## Quick Start
 
-- `api`: FastAPI app with the transactional outbox publisher and update consumer
-- `worker`: worker simulator
-- `postgres`: PostgreSQL on port `5433`
-- `rabbitmq`: RabbitMQ on ports `5673` and `15673`
-
-### Start the stack
+See [Local Setup](docs/setup.md) for prerequisites, first boot, verification, shutdown, and troubleshooting. In brief:
 
 ```bash
+git clone https://github.com/robodevchampion/tenant-control-plane.git
+cd tenant-control-plane
 podman compose up --build -d
 ```
 
-### Stop the stack
+The API is available at `http://localhost:8000`.
 
-```bash
-podman compose down -v
-```
+## API Documentation
 
-### Port mapping
+- Interactive Swagger UI for a running local stack: [http://localhost:8000/docs](http://localhost:8000/docs)
+- OpenAPI specification in this repository: [openapi.yaml](openapi.yaml)
+- OpenAPI in Swagger Editor: [View the specification](https://editor.swagger.io/?url=https://raw.githubusercontent.com/robodevchampion/tenant-control-plane/dev/openapi.yaml)
+- Request examples, routes, and error responses: [API Guide](docs/api.md)
 
-The host ports are intentionally different from the ports the application sees inside the compose network:
+## How It Works
 
-- Host access: `postgres` at `127.0.0.1:5433`, `rabbitmq` at `127.0.0.1:5673`
-- Container access: `postgres:5432`, `rabbitmq:5672`
+The API and worker communicate through RabbitMQ. Tenant and task writes are committed together; the outbox publisher then sends the task, and the worker publishes progress and a terminal result. See the [Architecture and State Flow](docs/architecture.md) for the diagram and design notes.
 
-This is the correct Docker/Podman pattern for compose networking.
+## Documentation Map
 
-### Verify the app is alive
+| Document | What it covers |
+| --- | --- |
+| [Local Setup](docs/setup.md) | Podman prerequisites, clone and boot commands, ports, smoke test, worker scenarios, shutdown, troubleshooting, and tests |
+| [Architecture and State Flow](docs/architecture.md) | Components, Mermaid lifecycle diagram, persistence and messaging decisions, idempotency, and tenant version semantics |
+| [API Guide](docs/api.md) | Swagger links, tenant/task routes, curl examples, pagination, optimistic locking, and structured errors |
+| [OpenAPI specification](openapi.yaml) | Machine-readable API contract |
 
-```bash
-curl http://127.0.0.1:8000/healthz
-```
+## Stack
 
-### Run the end-to-end flow
+- Python 3.12, FastAPI, and SQLAlchemy async
+- PostgreSQL with Alembic migrations
+- RabbitMQ with a transactional outbox and idempotent update consumer
+- A separately run worker simulator
+- Podman Compose for local services
 
-```bash
-./scripts/podman_e2e_flow.sh
-```
+## License and Secrets
 
-This creates a tenant through the API and waits for the worker to complete the deploy task and move the tenant to `active`.
-
-### Example negative scenarios
-
-```bash
-podman compose up -d --build
-podman compose run --rm worker python -m function.worker --fail-rate 1 --min-delay-ms 5000 --max-delay-ms 10000
-```
-
-This forces all tasks to fail, which is useful for verifying failure handling.
+Do not commit real credentials. The compose defaults are for local development only; replace them before using this stack in a shared or production environment.

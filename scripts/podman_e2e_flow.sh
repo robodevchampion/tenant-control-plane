@@ -15,33 +15,17 @@ PY
 
 response=$(curl -fsS -X POST "$API_BASE/v1/tenants" -H 'Content-Type: application/json' --data "$payload")
 
-tenant_id=$(python - <<PY
-import json, sys
-print(json.loads(sys.stdin.read())["tenant"]["id"])
-PY
-<<<"$response")
+tenant_id=$(python -c 'import json, sys; print(json.load(sys.stdin)["tenant"]["id"])' <<<"$response")
 
-task_id=$(python - <<PY
-import json, sys
-print(json.loads(sys.stdin.read())["task"]["id"])
-PY
-<<<"$response")
+task_id=$(python -c 'import json, sys; print(json.load(sys.stdin)["task"]["id"])' <<<"$response")
 
 echo "created tenant_id=$tenant_id task_id=$task_id"
 
 for _ in $(seq 1 120); do
   tenant_json=$(curl -fsS "$API_BASE/v1/tenants/$tenant_id")
-  tenant_status=$(python - <<PY
-import json, sys
-print(json.loads(sys.stdin.read())["status"])
-PY
-<<<"$tenant_json")
+  tenant_status=$(python -c 'import json, sys; print(json.load(sys.stdin)["status"])' <<<"$tenant_json")
   task_json=$(curl -fsS "$API_BASE/v1/tasks/$task_id")
-  task_status=$(python - <<PY
-import json, sys
-print(json.loads(sys.stdin.read())["status"])
-PY
-<<<"$task_json")
+  task_status=$(python -c 'import json, sys; print(json.load(sys.stdin)["status"])' <<<"$task_json")
 
   if [[ "$tenant_status" == "active" && "$task_status" == "done" ]]; then
     echo "tenant=$tenant_status task=$task_status"
