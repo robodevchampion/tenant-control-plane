@@ -32,7 +32,9 @@ class WorkerOptions:
 
     @property
     def attempt_failure_rate(self) -> float:
-        return self.fail_rate ** (1 / self.max_attempts)
+        # fail_rate is evaluated once per task, not once per retry attempt.
+        # This keeps the contract that fail_rate=0.2 means roughly 20% of tasks fail.
+        return 1.0
 
     def __post_init__(self) -> None:
         if not 0 <= self.fail_rate <= 1:
@@ -134,13 +136,12 @@ class WorkerSimulator:
             logger.info("Republished duplicate worker update update_id=%s", update_id)
 
     async def _simulate_outcome(self, task_id: UUID) -> tuple[str, str | None]:
+        if self.random.random() >= self.options.fail_rate:
+            return "done", None
         last_error = "Simulated provisioning failure"
-        attempt_failure_rate = self.options.attempt_failure_rate
         for attempt in range(1, self.options.max_attempts + 1):
             delay_ms = self.random.randint(self.options.min_delay_ms, self.options.max_delay_ms)
             await asyncio.sleep(delay_ms / 1000)
-            if self.random.random() >= attempt_failure_rate:
-                return "done", None
             last_error = f"Simulated provisioning failure on attempt {attempt}"
             if attempt < self.options.max_attempts:
                 base_delay = self.options.retry_backoff_ms * (2 ** (attempt - 1))
